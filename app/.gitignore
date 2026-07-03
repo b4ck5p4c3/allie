@@ -1,0 +1,38 @@
+# System files
+.DS_Store
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Files
+persist.json
+accessory.state
+homekey.json
+hap.state
+configuration.json
+
+# IDE's
+.idea/*
+.vscode/*
+
+# Tox
+.tox
+
+# Ignore dynaconf secret files
+config.yaml
+.mypy_cache/
+data/

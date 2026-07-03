@@ -1,0 +1,6 @@
+HAP-python==5.0.*
+cryptography==49.0.*
+nfcpy==1.0.*
+cbor2==6.1.*
+dynaconf==3.3.*
+chacha20poly1305_reuseable==0.13.*
