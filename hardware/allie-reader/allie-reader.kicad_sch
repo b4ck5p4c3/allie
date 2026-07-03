@@ -2910,6 +2910,18 @@
 		(uuid 54394de1-2155-4434-b482-f3a7e3789cfd)
 	)
 	(rectangle
+		(start 96.52 20.32)
+		(end 157.48 81.28)
+		(stroke
+			(width 0.254)
+			(type solid)
+		)
+		(fill
+			(type none)
+		)
+		(uuid b0b9ae65-e27f-4387-a96d-39d777c59ad2)
+	)
+	(rectangle
 		(start 157.48 20.32)
 		(end 269.24 81.28)
 		(stroke
@@ -2933,6 +2945,18 @@
 			)
 		)
 		(uuid "0f373aea-2bd5-4e0f-8fe8-11ff61e395c7")
+	)
+	(text "External Connectors"
+		(exclude_from_sim no)
+		(at 122.936 25.146 0)
+		(effects
+			(font
+				(size 3.048 3.048)
+				(thickness 0.762)
+				(bold yes)
+			)
+		)
+		(uuid "87f7026c-e40b-4ef1-bd80-8ef3d9aaf797")
 	)
 	(text "Power"
 		(exclude_from_sim no)
@@ -3000,7 +3024,7 @@
 	)
 	(text_box "RTX = RDR_TXD = From PN532\nRRX = RDR_RXD = To PN532\nSBU = Sideband Unit\n\nVIN = 6.5 ~ 16.5V\nTBD @ 12V (typ.)"
 		(exclude_from_sim no)
-		(at 45.72 40.64 0)
+		(at 124.46 43.18 0)
 		(size 30.48 17.78)
 		(margins 0.9525 0.9525 0.9525 0.9525)
 		(stroke
@@ -3196,7 +3220,7 @@
 	)
 	(wire
 		(pts
-			(xy 33.02 41.91) (xy 36.83 41.91)
+			(xy 104.14 39.37) (xy 107.95 39.37)
 		)
 		(stroke
 			(width 0)
@@ -3206,7 +3230,7 @@
 	)
 	(wire
 		(pts
-			(xy 33.02 49.53) (xy 36.83 49.53)
+			(xy 104.14 46.99) (xy 107.95 46.99)
 		)
 		(stroke
 			(width 0)
@@ -3246,7 +3270,7 @@
 	)
 	(wire
 		(pts
-			(xy 33.02 52.07) (xy 36.83 52.07)
+			(xy 104.14 49.53) (xy 107.95 49.53)
 		)
 		(stroke
 			(width 0)
@@ -3296,7 +3320,7 @@
 	)
 	(wire
 		(pts
-			(xy 33.02 57.15) (xy 36.83 57.15)
+			(xy 104.14 54.61) (xy 107.95 54.61)
 		)
 		(stroke
 			(width 0)
@@ -3326,7 +3350,7 @@
 	)
 	(wire
 		(pts
-			(xy 33.02 44.45) (xy 36.83 44.45)
+			(xy 104.14 41.91) (xy 107.95 41.91)
 		)
 		(stroke
 			(width 0)
@@ -3486,7 +3510,7 @@
 	)
 	(wire
 		(pts
-			(xy 33.02 54.61) (xy 36.83 54.61)
+			(xy 104.14 52.07) (xy 107.95 52.07)
 		)
 		(stroke
 			(width 0)
@@ -3506,7 +3530,7 @@
 	)
 	(wire
 		(pts
-			(xy 36.83 72.39) (xy 33.02 72.39)
+			(xy 107.95 69.85) (xy 104.14 69.85)
 		)
 		(stroke
 			(width 0)
@@ -3586,7 +3610,7 @@
 	)
 	(wire
 		(pts
-			(xy 33.02 59.69) (xy 36.83 59.69)
+			(xy 104.14 57.15) (xy 107.95 57.15)
 		)
 		(stroke
 			(width 0)
@@ -3696,7 +3720,7 @@
 	)
 	(wire
 		(pts
-			(xy 36.83 80.01) (xy 33.02 80.01)
+			(xy 107.95 77.47) (xy 104.14 77.47)
 		)
 		(stroke
 			(width 0)
@@ -3746,7 +3770,7 @@
 	)
 	(wire
 		(pts
-			(xy 33.02 46.99) (xy 36.83 46.99)
+			(xy 104.14 44.45) (xy 107.95 44.45)
 		)
 		(stroke
 			(width 0)
@@ -3786,7 +3810,7 @@
 	)
 	(wire
 		(pts
-			(xy 36.83 74.93) (xy 33.02 74.93)
+			(xy 107.95 72.39) (xy 104.14 72.39)
 		)
 		(stroke
 			(width 0)
@@ -3826,7 +3850,7 @@
 	)
 	(wire
 		(pts
-			(xy 36.83 77.47) (xy 33.02 77.47)
+			(xy 107.95 74.93) (xy 104.14 74.93)
 		)
 		(stroke
 			(width 0)
@@ -3859,7 +3883,7 @@
 		(uuid "189d3f9c-56ef-4717-bd00-d200472f294f")
 	)
 	(label "RRX_B"
-		(at 36.83 59.69 0)
+		(at 107.95 57.15 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -3871,7 +3895,7 @@
 		(uuid "1e309d7f-6667-40a1-a778-7e8dc720d515")
 	)
 	(label "GND"
-		(at 36.83 54.61 0)
+		(at 107.95 52.07 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -3893,7 +3917,7 @@
 		(uuid "36ff4a17-a4f5-42f6-a2ee-a3e8a36ea2d3")
 	)
 	(label "RDR_VCC"
-		(at 36.83 74.93 0)
+		(at 107.95 72.39 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -3915,7 +3939,7 @@
 		(uuid "5363a489-f79f-46be-8af1-6f6568d8abd5")
 	)
 	(label "RDR_TXD"
-		(at 36.83 77.47 0)
+		(at 107.95 74.93 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -3927,7 +3951,7 @@
 		(uuid "6133b8f0-b281-4007-9bb0-c8ca7c4eada0")
 	)
 	(label "RTX_A"
-		(at 36.83 52.07 0)
+		(at 107.95 49.53 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -3939,7 +3963,7 @@
 		(uuid "690cfb5c-385f-4c9d-850c-a3e3cd52fa18")
 	)
 	(label "RDR_GND"
-		(at 36.83 72.39 0)
+		(at 107.95 69.85 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -3963,7 +3987,7 @@
 		(uuid "6e6ceee4-c763-4df1-8654-a4eefb7d195d")
 	)
 	(label "RTX_B"
-		(at 36.83 49.53 0)
+		(at 107.95 46.99 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -3975,7 +3999,7 @@
 		(uuid "7716b538-2364-468d-896d-4deefc815cf5")
 	)
 	(label "SBU_B"
-		(at 36.83 44.45 0)
+		(at 107.95 41.91 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -3997,7 +4021,7 @@
 		(uuid "867f54c8-3359-4b11-870e-43350209cfca")
 	)
 	(label "RRX_A"
-		(at 36.83 57.15 0)
+		(at 107.95 54.61 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -4055,7 +4079,7 @@
 		(uuid "a75df866-0a80-45fe-a309-a28866658ce6")
 	)
 	(label "SBU_A"
-		(at 36.83 41.91 0)
+		(at 107.95 39.37 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -4087,7 +4111,7 @@
 		(uuid "e702abd1-1590-48e6-87ae-c241b4e45369")
 	)
 	(label "VIN"
-		(at 36.83 46.99 0)
+		(at 107.95 44.45 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -4111,7 +4135,7 @@
 		(uuid "f7a126ce-63fc-48a7-b7f9-080038edddcc")
 	)
 	(label "RDR_RXD"
-		(at 36.83 80.01 0)
+		(at 107.95 77.47 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -4204,7 +4228,7 @@
 	)
 	(symbol
 		(lib_id "Connector:Conn_01x04_Socket")
-		(at 27.94 74.93 0)
+		(at 99.06 72.39 0)
 		(mirror y)
 		(unit 1)
 		(exclude_from_sim no)
@@ -4213,7 +4237,7 @@
 		(dnp no)
 		(uuid "056ea916-e79b-4056-b9c5-ff9345d3f1aa")
 		(property "Reference" "J2"
-			(at 29.21 66.04 0)
+			(at 100.33 63.5 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4221,7 +4245,7 @@
 			)
 		)
 		(property "Value" "Reader"
-			(at 31.369 68.58 0)
+			(at 102.489 66.04 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4229,7 +4253,7 @@
 			)
 		)
 		(property "Footprint" "Connector_PinSocket_2.54mm:PinSocket_1x04_P2.54mm_Vertical"
-			(at 27.94 74.93 0)
+			(at 99.06 72.39 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4238,7 +4262,7 @@
 			)
 		)
 		(property "Datasheet" "~"
-			(at 27.94 74.93 0)
+			(at 99.06 72.39 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4247,7 +4271,7 @@
 			)
 		)
 		(property "Description" "Generic connector, single row, 01x04, script generated"
-			(at 27.94 74.93 0)
+			(at 99.06 72.39 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4624,7 +4648,7 @@
 	)
 	(symbol
 		(lib_id "Connector:Conn_01x08_Socket")
-		(at 27.94 49.53 0)
+		(at 99.06 46.99 0)
 		(mirror y)
 		(unit 1)
 		(exclude_from_sim no)
@@ -4633,7 +4657,7 @@
 		(dnp no)
 		(uuid "59c884f2-b1c2-4add-8065-f023c5ab7bb0")
 		(property "Reference" "J1"
-			(at 30.226 34.544 0)
+			(at 101.346 32.004 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4642,7 +4666,7 @@
 			)
 		)
 		(property "Value" "8P8C Socket"
-			(at 39.878 37.338 0)
+			(at 110.998 34.798 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4651,7 +4675,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 27.94 49.53 0)
+			(at 99.06 46.99 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4660,7 +4684,7 @@
 			)
 		)
 		(property "Datasheet" "~"
-			(at 27.94 49.53 0)
+			(at 99.06 46.99 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4669,7 +4693,7 @@
 			)
 		)
 		(property "Description" "Generic connector, single row, 01x08, script generated"
-			(at 27.94 49.53 0)
+			(at 99.06 46.99 0)
 			(effects
 				(font
 					(size 1.27 1.27)
