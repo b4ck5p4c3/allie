@@ -38,6 +38,7 @@ class Lock(Accessory):
         # Authentication always unlocks the lock
         self._lock_target_state = 0
         log.info(f"Unlocking via: {endpoint}")
+        self.service.write_gpio(p70=True, p71=True, p72=False)
 
         self.lock_target_state.set_value(self._lock_target_state, should_notify=True)
         self._lock_current_state = self._lock_target_state

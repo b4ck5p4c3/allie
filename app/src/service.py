@@ -72,6 +72,18 @@ class Service:
         self._run_flag = True
         self._runner = None
 
+    def write_gpio(self, p70: bool, p71: bool, p72: bool):
+        """Write P70, P71, P72 GPIO pins on the PN532."""
+        if self.clf.device is None:
+            return
+        try:
+            p7 = (int(p70) << 0) | (int(p71) << 1) | (int(p72) << 2)
+            # 0x80 is the validation bit for P7 port
+            params = bytearray([0x00, 0x80 | p7])
+            self.clf.device.chipset.command(0x0E, params, timeout=0.1)
+        except Exception as e:
+            log.debug(f"write_gpio failed: {e}")
+
     def on_endpoint_authenticated(self, endpoint):
         """Handle an authenticated endpoint."""
         # Currently overwritten by accessory.py
@@ -135,6 +147,8 @@ class Service:
     def _read_homekey(self):
         start = time.monotonic()
 
+        self.write_gpio(p70=True, p71=False, p72=False)
+
         remote_target = self.clf.sense(
             RemoteTarget("106A"),
             broadcast=ECP.home(
@@ -147,6 +161,8 @@ class Service:
             # Throttle polling attempts to prevent overheating & RF performance degradation
             time.sleep(max(0, self.throttle_polling - time.monotonic() + start))
             return
+
+        self.write_gpio(p70=False, p71=True, p72=False)
 
         target = activate(self.clf, remote_target)
         if target is None:
