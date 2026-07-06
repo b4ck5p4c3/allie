@@ -5,7 +5,7 @@ import pytest
 from util.structable import pack
 from util.tlv import BERTLV as TLV
 from util.iso7816 import ISO7816Response, ISO7816Tag
-from homekey import read_homekey, ProtocolError
+from reader.homekey import read_homekey, ProtocolError
 
 
 class FakeTag:

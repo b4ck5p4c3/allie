@@ -1,28 +1,69 @@
+import base64
 import functools
 import logging
+import os
+import time
 
 from pyhap.accessory import Accessory
 from pyhap.const import CATEGORY_DOOR_LOCK
 
-from service import Service
 from config import config
+from entity import (
+    ControlPointRequest,
+    ControlPointResponse,
+    DeviceCredentialRequest,
+    DeviceCredentialResponse,
+    Endpoint,
+    Enrollment,
+    Enrollments,
+    HardwareFinishColor,
+    HardwareFinishResponse,
+    Issuer,
+    Operation,
+    OperationStatus,
+    ReaderKeyRequest,
+    ReaderKeyResponse,
+    SupportedConfigurationResponse,
+)
+from repository import Repository
+from service import LockState, MqttService
+from util.structable import pack_into_base64_string, unpack_from_base64_string
 
 log = logging.getLogger()
 
 
-# Lock class performs no logic, forwarding requests to Service class
+# Lock class translates HAP lock actions to MQTT events and handles NFCAccess
+# credential provisioning against the Repository. It makes no access-control
+# decisions itself - opening the door is the external service's responsibility.
 class Lock(Accessory):
     category = CATEGORY_DOOR_LOCK
 
-    def __init__(self, *args, service: Service, firmwareVersion: str, **kwargs):
+    def __init__(
+        self,
+        *args,
+        repository: Repository,
+        mqtt_service: MqttService,
+        firmwareVersion: str,
+        finish: str = "silver",
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
         self._last_client_public_keys = None
 
         self._lock_target_state = 1
         self._lock_current_state = 1
 
-        self.service = service
-        self.service.on_endpoint_authenticated = self.on_endpoint_authenticated
+        self.repository = repository
+        self.mqtt_service = mqtt_service
+
+        try:
+            self.hardware_finish_color = HardwareFinishColor[finish.upper()]
+        except KeyError:
+            self.hardware_finish_color = HardwareFinishColor.BLACK
+            log.warning(
+                f"HardwareFinish {finish} is not supported. Falling back to {self.hardware_finish_color}"
+            )
+
         self.add_lock_service()
         self.add_nfc_access_service()
         self.add_unpair_hook()
@@ -31,18 +72,21 @@ class Lock(Accessory):
             manufacturer='B4CKSP4CE',
             model='Allie Lock',
             firmware_revision=firmwareVersion,
-            serial_number=config.get("hap.serial_number", "BKSP.0010.03/0"),
+            serial_number=config.hap.serial_number,
         )
 
-    def on_endpoint_authenticated(self, endpoint):
-        # Authentication always unlocks the lock
-        self._lock_target_state = 0
-        log.info(f"Unlocking via: {endpoint}")
-        self.service.write_gpio(p70=True, p71=True, p72=False)
+    def on_tag_read(self, identifier: str):
+        """Publish a tag identified by the Reader as an MQTT tag event."""
+        self.mqtt_service.publish_tag_event(identifier)
 
-        self.lock_target_state.set_value(self._lock_target_state, should_notify=True)
-        self._lock_current_state = self._lock_target_state
+    def apply_lock_state(self, state: LockState):
+        """Apply a lock state reported by the external service via MQTT."""
+        self._lock_current_state = self._lock_target_state = (
+            0 if state == LockState.OPENED else 1
+        )
+        log.info(f"Applying lock state from MQTT: {state}")
         self.lock_current_state.set_value(self._lock_current_state, should_notify=True)
+        self.lock_target_state.set_value(self._lock_target_state, should_notify=True)
 
     def add_unpair_hook(self):
         unpair = self.driver.unpair
@@ -128,7 +172,7 @@ class Lock(Accessory):
         if self._last_client_public_keys == client_public_keys:
             return
         self._last_client_public_keys = client_public_keys
-        self.service.update_hap_pairings(client_public_keys)
+        self.update_hap_pairings(client_public_keys)
 
     def get_lock_current_state(self):
         log.info("get_lock_current_state")
@@ -139,9 +183,16 @@ class Lock(Accessory):
         return self._lock_target_state
 
     def set_lock_target_state(self, value):
+        """Forward the HomeKit lock/unlock request as an MQTT action event.
+
+        The current state is intentionally left unchanged here: it is only
+        updated once the external service confirms the actual lock state via
+        the `lock/set` MQTT command (see apply_lock_state).
+        """
         log.info(f"set_lock_target_state {value}")
-        self._lock_target_state = self._lock_current_state = value
-        self.lock_current_state.set_value(self._lock_current_state, should_notify=True)
+        self._lock_target_state = value
+        action = "OPEN" if value == 0 else "CLOSE"
+        self.mqtt_service.publish_action_event(action, config.hap.serial_number)
         return self._lock_target_state
 
     def get_lock_version(self):
@@ -151,31 +202,177 @@ class Lock(Accessory):
     def set_lock_control_point(self, value):
         log.info(f"set_lock_control_point: {value}")
 
-    # All methods down here are forwarded to Service
+    def update_hap_pairings(self, issuer_public_keys):
+        issuers = {
+            issuer.public_key: issuer for issuer in self.repository.get_all_issuers()
+        }
+        for issuer in issuers.values():
+            if issuer.public_key in issuer_public_keys:
+                continue
+            log.info(f"Removing issuer {issuer} as their pairing has been removed")
+            self.repository.remove_issuer(issuer)
+
+        for issuer_public_key in issuer_public_keys:
+            if issuer_public_key in issuers:
+                continue
+            issuer = Issuer(public_key=issuer_public_key, endpoints=[])
+            log.info(f"Adding issuer {issuer} based on paired clients")
+            self.repository.upsert_issuer(issuer)
+
+    def get_reader_key(self, request: ReaderKeyRequest) -> ReaderKeyResponse:
+        return ReaderKeyResponse(
+            key_identifier=self.repository.get_reader_group_identifier(),
+        )
+
+    def add_reader_key(self, request: ReaderKeyRequest) -> ReaderKeyResponse:
+        changed = False
+        if self.repository.get_reader_private_key() != request.reader_private_key:
+            changed = True
+            self.repository.set_reader_private_key(request.reader_private_key)
+        if self.repository.get_reader_identifier() != request.unique_reader_identifier:
+            changed = True
+            self.repository.set_reader_identifier(request.unique_reader_identifier)
+        return ReaderKeyResponse(
+            status=OperationStatus.SUCCESS if changed else OperationStatus.DUPLICATE
+        )
+
+    def remove_reader_key(self, request: ReaderKeyRequest) -> ReaderKeyResponse:
+        exists = request.key_identifier == self.repository.get_reader_group_identifier()
+        if exists:
+            self.repository.set_reader_private_key(bytes.fromhex("00" * 32))
+        return ReaderKeyResponse(
+            status=OperationStatus.SUCCESS if exists else OperationStatus.DOES_NOT_EXIST
+        )
+
+    def get_device_credential(
+        self, request: DeviceCredentialRequest
+    ) -> DeviceCredentialResponse:
+        log.debug(f"get_device_credential request={request}")
+
+    def add_device_credential(
+        self, request: DeviceCredentialRequest
+    ) -> DeviceCredentialResponse:
+        endpoint = self.repository.get_endpoint_by_public_key(
+            b"\x04" + request.credential_public_key
+        )
+        log.debug(f"add_device_credential endpoint={endpoint}")
+
+        if endpoint is not None:
+            if endpoint.enrollments.hap is not None:
+                return DeviceCredentialResponse(
+                    key_identifier=self.repository.get_reader_group_identifier(),
+                    status=OperationStatus.DUPLICATE,
+                )
+            issuer = self.repository.get_issuer_by_id(request.issuer_key_identifier)
+            endpoint.enrollments.hap = Enrollment(
+                at=int(time.time()),
+                payload=base64.b64encode(request.pack()).decode(),
+            )
+            self.repository.upsert_endpoint(issuer.id, endpoint)
+            return DeviceCredentialResponse(
+                key_identifier=self.repository.get_reader_group_identifier(),
+                status=OperationStatus.SUCCESS,
+            )
+
+        issuer = self.repository.get_issuer_by_id(request.issuer_key_identifier)
+        log.debug(f"add_device_credential issuer={issuer}")
+
+        if issuer is None:
+            return DeviceCredentialResponse(
+                key_identifier=self.repository.get_reader_group_identifier(),
+                status=OperationStatus.DOES_NOT_EXIST,
+            )
+
+        self.repository.upsert_endpoint(
+            issuer.id,
+            Endpoint(
+                last_used_at=0,
+                counter=0,
+                key_type=request.key_type,
+                public_key=b"\x04" + request.credential_public_key,
+                persistent_key=os.urandom(32),
+                enrollments=Enrollments(
+                    hap=Enrollment(
+                        at=int(time.time()),
+                        payload=base64.b64encode(request.pack()).decode(),
+                    ),
+                    attestation=None,
+                ),
+            ),
+        )
+        return DeviceCredentialResponse(
+            issuer_key_identifier=issuer.id, status=OperationStatus.SUCCESS
+        )
+
+    def remove_device_credential(
+        self, request: DeviceCredentialRequest
+    ) -> DeviceCredentialResponse:
+        log.debug(f"remove_device_credential request={request}")
+
+    # All methods down here are exposed as HAP characteristic callbacks
     def get_hardware_finish(self):
         self._update_hap_pairings()
         log.info("get_hardware_finish")
-        return self.service.get_hardware_finish()
+        return pack_into_base64_string(
+            HardwareFinishResponse(color=self.hardware_finish_color)
+        )
 
     def get_nfc_access_supported_configuration(self):
         self._update_hap_pairings()
         log.info("get_nfc_access_supported_configuration")
-        return self.service.get_nfc_access_supported_configuration()
+        return pack_into_base64_string(
+            SupportedConfigurationResponse(
+                number_of_issuer_keys=16, number_of_inactive_credentials=16
+            )
+        )
 
     def get_nfc_access_control_point(self):
         self._update_hap_pairings()
         log.info("get_nfc_access_control_point")
-        return self.service.get_nfc_access_control_point()
+        return ""
 
     def set_nfc_access_control_point(self, value):
         self._update_hap_pairings()
-        log.info(f"set_nfc_access_control_point {value}")
-        return self.service.set_nfc_access_control_point(value)
+        log.debug(f"<-- (B64) {value}")
+        request_packed_tlv = unpack_from_base64_string(value)
+        request: ControlPointRequest = ControlPointRequest.unpack(request_packed_tlv)
+        log.debug(f"<-- (OBJ) {request}")
+        response = ControlPointResponse()
+
+        if request.device_credential_request is not None:
+            response.device_credential_response = self._dispatch_operation(
+                request.operation,
+                get=self.get_device_credential,
+                add=self.add_device_credential,
+                remove=self.remove_device_credential,
+                request=request.device_credential_request,
+            )
+        elif request.reader_key_request is not None:
+            response.reader_key_response = self._dispatch_operation(
+                request.operation,
+                get=self.get_reader_key,
+                add=self.add_reader_key,
+                remove=self.remove_reader_key,
+                request=request.reader_key_request,
+            )
+
+        log.debug(f"--> (OBJ) {response}")
+        return pack_into_base64_string(response.pack())
+
+    @staticmethod
+    def _dispatch_operation(operation: Operation, *, get, add, remove, request):
+        handlers = {
+            Operation.GET: get,
+            Operation.ADD: add,
+            Operation.REMOVE: remove,
+        }
+        handler = handlers.get(operation)
+        return handler(request) if handler is not None else None
 
     def get_configuration_state(self):
         self._update_hap_pairings()
         log.info("get_configuration_state")
-        return self.service.get_configuration_state()
+        return 0
 
     @property
     def clients(self):

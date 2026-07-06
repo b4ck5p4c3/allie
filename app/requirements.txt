@@ -3,5 +3,6 @@ cryptography==49.0.*
 nfcpy==1.0.*
 cbor2==6.1.*
 dynaconf==3.3.*
+pydantic==2.*
 chacha20poly1305_reuseable==0.13.*
 paho-mqtt==2.1.*

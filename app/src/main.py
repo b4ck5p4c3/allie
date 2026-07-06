@@ -1,6 +1,7 @@
 # Allie app version
 __version__ = "0.1.0"
 
+import functools
 import logging
 import os
 import signal
@@ -11,14 +12,15 @@ from zeroconf import InterfaceChoice
 
 from pathlib import Path
 from accessory import Lock
+from reader.reader import Reader
 from repository import Repository
-from service import Service
+from service import MqttService
 from util.bfclf import BroadcastFrameContactlessFrontend
 
 from config import config
 
 # Resolve path relative to the project root
-PERSISTENCE_PATH = Path(__file__).parent.joinpath("..", config.get("persistence", 'data')).resolve()
+PERSISTENCE_PATH = Path(__file__).parent.joinpath("..", config.persistence).resolve()
 
 
 def configure_logging():
@@ -37,30 +39,32 @@ def configure_logging():
 
 def configure_nfc_device() -> BroadcastFrameContactlessFrontend:
     clf = BroadcastFrameContactlessFrontend(
-        path=config.get("nfc.path"),
-        broadcast_enabled=config.get("nfc.broadcast", True),
+        path=config.nfc.path,
+        broadcast_enabled=config.nfc.broadcast,
     )
     return clf
 
 
-def configure_homekey_service(nfc_device: BroadcastFrameContactlessFrontend) -> Service:
-    state_file_path = PERSISTENCE_PATH.joinpath("homekey.json")
-    service = Service(
+def configure_reader(
+    nfc_device: BroadcastFrameContactlessFrontend, repository: Repository
+) -> Reader:
+    return Reader(
         nfc_device,
-        repository=Repository(state_file_path),
-        express=config.get("homekey.express", True),
-        finish=config.get("homekey.finish", "silver"),
-        flow=config.get("homekey.flow", "fast"),
+        repository=repository,
+        on_tag=lambda identifier: None,  # wired to the accessory in main()
+        express=config.homekey.express,
+        flow=config.homekey.flow,
     )
-    return service
 
 
-def configure_hap_accessory(homekey_service: Service) -> tuple[AccessoryDriver, Lock]:
+def configure_hap_accessory(
+    repository: Repository, mqtt_service: MqttService
+) -> tuple[AccessoryDriver, Lock]:
     state_file_path = PERSISTENCE_PATH.joinpath("hap.json")
     driver = AccessoryDriver(
-        port=config.get("hap.bind_port", 51826),
-        address=config.get("hap.bind_host"),
-        pincode=config.get("hap.pin_code", "031-45-154").encode(),
+        port=config.hap.bind_port,
+        address=config.hap.bind_host,
+        pincode=config.hap.pin_code.encode(),
         interface_choice=InterfaceChoice.All,
         persist_file=str(state_file_path),
     )
@@ -68,31 +72,83 @@ def configure_hap_accessory(homekey_service: Service) -> tuple[AccessoryDriver, 
     accessory = Lock(
         driver,
         "Allie",
-        service=homekey_service,
+        repository=repository,
+        mqtt_service=mqtt_service,
         firmwareVersion=__version__,
+        finish=config.homekey.finish,
     )
 
     driver.add_accessory(accessory=accessory)
     return driver, accessory
 
 
+def stop_hap_driver(hap_driver: AccessoryDriver, log: logging.Logger):
+    """Stop the HAP accessory driver, guaranteeing its event loop halts.
+
+    ``AccessoryDriver.async_stop()`` can raise (e.g. ``AttributeError`` on
+    ``self.advertiser`` if the driver is signalled to stop before it has
+    finished starting up). Since that coroutine is what eventually calls
+    ``loop.stop()``, an unhandled exception there leaves the loop running
+    forever and the process unkillable. Wrap it so the loop always stops.
+    """
+
+    async def _async_stop():
+        try:
+            await hap_driver.async_stop()
+        except Exception:
+            log.exception("Error while stopping HAP driver; forcing loop stop")
+            hap_driver.loop.stop()
+
+    hap_driver.loop.call_soon_threadsafe(
+        hap_driver.loop.create_task, _async_stop()
+    )
+
+
+def handle_shutdown_signal(
+    signum,
+    frame,
+    *,
+    log: logging.Logger,
+    reader: Reader,
+    mqtt_service: MqttService,
+    hap_driver: AccessoryDriver,
+):
+    log.info(f"SIGNAL {signum}")
+    reader.stop()
+    mqtt_service.stop()
+    stop_hap_driver(hap_driver, log)
+
+
 def main():
     log = configure_logging()
+
     nfc_device = configure_nfc_device()
-    homekey_service = configure_homekey_service(nfc_device)
-    hap_driver, _ = configure_hap_accessory(homekey_service)
+    repository = Repository(PERSISTENCE_PATH.joinpath("homekey.json"))
+
+    mqtt_service = MqttService(config.mqtt)
+    reader = configure_reader(nfc_device, repository)
+    hap_driver, lock = configure_hap_accessory(repository, mqtt_service)
+
+    # Wire up: tag reads -> MQTT events/tag; MQTT lock/set -> HAP lock state;
+    # MQTT indication/set -> reader GPIO (LED/buzzer indication)
+    reader.on_tag = lock.on_tag_read
+    mqtt_service.on_lock_state = lock.apply_lock_state
+    mqtt_service.on_indication = lambda state: reader.set_indication(state, external=True)
 
     for s in (signal.SIGINT, signal.SIGTERM):
         signal.signal(
             s,
-            lambda *_: (
-                log.info(f"SIGNAL {s}"),
-                homekey_service.stop(),
-                hap_driver.stop(),
+            functools.partial(
+                handle_shutdown_signal,
+                log=log,
+                reader=reader,
+                mqtt_service=mqtt_service,
+                hap_driver=hap_driver,
             ),
         )
 
-    homekey_service.start()
+    mqtt_service.start()
+    reader.start()
     hap_driver.start()
 
 
