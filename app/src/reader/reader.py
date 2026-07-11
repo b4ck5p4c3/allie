@@ -192,7 +192,7 @@ class Reader:
         start = time.monotonic()
 
         # Set Idle
-        # self.set_indication(IndicationState.IDLE)
+        self.set_indication(IndicationState.IDLE)
 
         remote_target = self.clf.sense(
             RemoteTarget("106A"),
@@ -239,7 +239,7 @@ class Reader:
             raise e
 
         # Get back to IDLE indication
-        # self.set_indication(IndicationState.IDLE)
+        self.set_indication(IndicationState.IDLE)
 
     def _wait_until_target_leaves_field(self):
         while self.clf.sense(RemoteTarget("106A")) is not None:
