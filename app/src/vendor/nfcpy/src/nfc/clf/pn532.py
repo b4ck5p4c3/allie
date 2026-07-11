@@ -394,6 +394,47 @@ def _read_or_fail(transport, timeout, expect, step):
     return frame
 
 
+# Number of consecutive init() failures seen per port, used to trigger
+# _send_reset_trigger() below. Keyed by transport.port.
+_consecutive_init_failures = {}
+
+# Project-specific out-of-band "reset" signal (not a real PN532 command):
+# a well-formed frame envelope (preamble/start-code/LEN/LCS) wrapping
+# command byte 0xFE with a deliberately wrong data checksum (0x08 instead
+# of the correct 0x02 for a single 0xFE data byte). No genuine PN532
+# command is 0xFE and the bad checksum makes this invalid PN532 traffic,
+# so a real PN532 just ignores/NACKs it - but a separate device passively
+# listening on the bus watches for this exact byte sequence and resets
+# the reader when it sees it.
+_RESET_TRIGGER_FRAME = bytearray.fromhex("0000ff01fffe0800")
+
+# Time to wait after sending the reset trigger frame, so the listening
+# device has a chance to power-cycle/reset the reader before the next
+# connect attempt is made (which would otherwise likely hit the reader
+# mid-reset and just fail again immediately).
+_RESET_SETTLE_TIME = 2.0  # seconds
+
+
+def _send_reset_trigger(transport):
+    log.warning("3 consecutive pn532 init failures on %s, sending reset "
+                "trigger frame", transport.port)
+    try:
+        transport.write(_RESET_TRIGGER_FRAME)
+    except IOError as error:
+        log.debug("failed to send reset trigger frame on %s: %s",
+                  transport.port, error)
+        return
+    time.sleep(_RESET_SETTLE_TIME)
+
+
+def _note_init_failure(transport):
+    count = _consecutive_init_failures.get(transport.port, 0) + 1
+    _consecutive_init_failures[transport.port] = count
+    if count >= 3:
+        _consecutive_init_failures[transport.port] = 0
+        _send_reset_trigger(transport)
+
+
 def init(transport):
     if transport.TYPE == "TTY":
         baudrate = 115200
@@ -401,22 +442,33 @@ def init(transport):
         transport.open(transport.port, baudrate)
         long_preamble = bytearray(10)
 
-        get_version_cmd = bytearray.fromhex("0000ff02fed4022a00")
-        get_version_rsp = bytearray.fromhex("0000ff06fad50332")
-        transport.write(long_preamble + get_version_cmd)
-        log.debug("wait %d ms for data on %s", init_timeout, transport.port)
-        _read_or_fail(transport, init_timeout, Chipset.ACK, "get_version ack")
-        _read_or_fail(transport, init_timeout,
-                      lambda f: f.startswith(get_version_rsp), "get_version rsp")
+        try:
+            get_version_cmd = bytearray.fromhex("0000ff02fed4022a00")
+            get_version_rsp = bytearray.fromhex("0000ff06fad50332")
+            transport.write(long_preamble + get_version_cmd)
+            log.debug("wait %d ms for data on %s", init_timeout, transport.port)
+            _read_or_fail(transport, init_timeout, Chipset.ACK, "get_version ack")
+            _read_or_fail(transport, init_timeout,
+                          lambda f: f.startswith(get_version_rsp), "get_version rsp")
 
-        sam_configuration_cmd = bytearray.fromhex("0000ff05fbd4140100001700")
-        sam_configuration_rsp = bytearray.fromhex("0000ff02fed5151600")
-        transport.write(long_preamble + sam_configuration_cmd)
-        _read_or_fail(transport, init_timeout, Chipset.ACK, "sam_configuration ack")
-        _read_or_fail(transport, init_timeout, sam_configuration_rsp,
-                      "sam_configuration rsp")
+            sam_configuration_cmd = bytearray.fromhex("0000ff05fbd4140100001700")
+            sam_configuration_rsp = bytearray.fromhex("0000ff02fed5151600")
+            transport.write(long_preamble + sam_configuration_cmd)
+            _read_or_fail(transport, init_timeout, Chipset.ACK, "sam_configuration ack")
+            _read_or_fail(transport, init_timeout, sam_configuration_rsp,
+                          "sam_configuration rsp")
 
-        chipset = Chipset(transport, logger=log)
-        return Device(chipset, logger=log)
+            # Device.__init__ (pn53x.py) runs its own "line" diagnose
+            # check and raises IOError(EIO) if that fails - a device
+            # that passed the handshake above but fails this check is
+            # just as broken, so it must count as an init failure too.
+            chipset = Chipset(transport, logger=log)
+            device = Device(chipset, logger=log)
+        except IOError:
+            _note_init_failure(transport)
+            raise
+
+        _consecutive_init_failures.pop(transport.port, None)
+        return device
 
     raise IOError(errno.ENODEV, os.strerror(errno.ENODEV))
