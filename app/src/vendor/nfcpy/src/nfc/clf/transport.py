@@ -64,59 +64,17 @@ class TTY(object):
             port = match.group(2)
             driver = match.group(3)
 
-            if re.match(r'^/dev/.+$', port):
-                try:
-                    termios.tcgetattr(open(port))
-                    return [port], driver, False
-                except termios.error:
-                    return [], driver, False
-                except IOError:
-                    raise
+            if not re.match(r'^/dev/.+$', port):
+                log.error("invalid port in 'tty' path: %r (must be full /dev path)", port)
+                return None
 
-            if re.match(r'^(S|ACM|AMA|USB)\d+$', port):
-                TTYS = re.compile(r'^tty{}$'.format(port))
-                glob = False
-            elif re.match(r'^(S|ACM|AMA|USB)$', port):
-                TTYS = re.compile(r'^tty{}\d+$'.format(port))
-                glob = True
-            elif re.match(r'^usbserial-\w+$', port):
-                TTYS = re.compile(r'^cu\.{}$'.format(port))
-                glob = False
-            elif re.match(r'^usbserial$', port):
-                TTYS = re.compile(r'^cu\.usbserial-.*$')
-                glob = True
-            elif re.match(r'^.+$', port):
-                TTYS = re.compile(r'^{}$'.format(port))
-                glob = False
-            else:
-                TTYS = re.compile(r'^(tty(S|ACM|AMA|USB)\d+|cu\.usbserial.*)$')
-                glob = True
-
-            log.debug(TTYS.pattern)
-            ttys = [fn for fn in os.listdir('/dev') if TTYS.match(fn)]
-
-            if len(ttys) > 0:
-                # Sort ttys with custom function to correctly order numbers.
-                ttys.sort(key=lambda item: (len(item), item))
-                log.debug('check: ' + ' '.join('/dev/' + tty for tty in ttys))
-
-                # Eliminate tty nodes that are not physically present or
-                # inaccessible by the current user. Propagate IOError when
-                # path designated exactly one device, otherwise just log.
-                for i, tty in enumerate(ttys):
-                    try:
-                        termios.tcgetattr(open('/dev/%s' % tty))
-                        ttys[i] = '/dev/%s' % tty
-                    except termios.error:
-                        pass
-                    except IOError as error:
-                        log.debug(error)
-                        if not glob:
-                            raise error
-
-                ttys = [tty for tty in ttys if tty.startswith('/dev/')]
-                log.debug('avail: %s', ' '.join([tty for tty in ttys]))
-                return ttys, driver, glob
+            try:
+                termios.tcgetattr(open(port))
+                return [port], driver, False
+            except termios.error:
+                return [], driver, False
+            except IOError:
+                raise
 
         if match and match.group(1) == "com":
             if re.match(r'^COM\d+$', match.group(2)):

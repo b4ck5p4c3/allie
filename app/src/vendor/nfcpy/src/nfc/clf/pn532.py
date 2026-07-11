@@ -371,79 +371,27 @@ class Device(pn53x.Device):
 
 def init(transport):
     if transport.TYPE == "TTY":
-        baudrate = 115200  # PN532 initial baudrate
+        baudrate = 115200
+        init_timeout = 1500  # milliseconds
         transport.open(transport.port, baudrate)
         long_preamble = bytearray(10)
-
-        # The PN532 chip should send an ack within 15 ms after a
-        # command. We'll give it a bit more and wait 100 ms, unless
-        # we're on a Raspberry Pi detected by the Broadcom SOC. The
-        # USB on BCM270x has a nasty bug (may be SW or HW) that
-        # introduces additional up to ~1000 ms delay for the first
-        # data from a ttyUSB. Tested with two serial converters
-        # (PL2303 and FT232R) in loopback and it's reproducable adding
-        # up to 1000 ms if a serial open is done 1 sec after serial
-        # close. Waiting longer decreases that time until after 2 sec
-        # wait between close and open it all goes fine until the wait
-        # time reaches 3 seconds, and so on.
-        initial_timeout = 100   # milliseconds
-        change_baudrate = False  # try higher speeds
-        if sys.platform.startswith('linux'):
-            board = b""  # Raspi board will identify through device tree
-            try:
-                board = open('/proc/device-tree/model', "rb").read().strip(
-                        b'\x00')
-            except IOError:
-                pass
-            if board.startswith(b"Raspberry Pi"):
-                log.debug("running on {}".format(board))
-                if transport.port.startswith("/dev/ttyUSB"):
-                    log.debug("ttyUSB requires more time for first ack")
-                    initial_timeout = 1500  # milliseconds
-                elif transport.port == "/dev/ttyS0":
-                    log.debug("ttyS0 can only do 115.2 kbps")
-                    change_baudrate = False  # RPi 'mini uart'
 
         get_version_cmd = bytearray.fromhex("0000ff02fed4022a00")
         get_version_rsp = bytearray.fromhex("0000ff06fad50332")
         transport.write(long_preamble + get_version_cmd)
-        log.debug("wait %d ms for data on %s", initial_timeout, transport.port)
-        if not transport.read(timeout=initial_timeout) == Chipset.ACK:
+        log.debug("wait %d ms for data on %s", init_timeout, transport.port)
+        if not transport.read(timeout=init_timeout) == Chipset.ACK:
             raise IOError(errno.ENODEV, os.strerror(errno.ENODEV))
-        if not transport.read(timeout=100).startswith(get_version_rsp):
+        if not transport.read(timeout=init_timeout).startswith(get_version_rsp):
             raise IOError(errno.ENODEV, os.strerror(errno.ENODEV))
 
         sam_configuration_cmd = bytearray.fromhex("0000ff05fbd4140100001700")
         sam_configuration_rsp = bytearray.fromhex("0000ff02fed5151600")
         transport.write(long_preamble + sam_configuration_cmd)
-        if not transport.read(timeout=100) == Chipset.ACK:
+        if not transport.read(timeout=init_timeout) == Chipset.ACK:
             raise IOError(errno.ENODEV, os.strerror(errno.ENODEV))
-        if not transport.read(timeout=100) == sam_configuration_rsp:
+        if not transport.read(timeout=init_timeout) == sam_configuration_rsp:
             raise IOError(errno.ENODEV, os.strerror(errno.ENODEV))
-
-        if sys.platform.startswith("linux") and change_baudrate is True:
-            stty = 'stty -F %s %%d 2> /dev/null' % transport.port
-            for baudrate in (921600, 460800, 230400, 115200):
-                log.debug("trying to set %d baud", baudrate)
-                if os.system(stty % baudrate) == 0:
-                    os.system(stty % 115200)
-                    break
-
-        if baudrate > 115200:
-            set_baudrate_cmd = bytearray.fromhex("0000ff03fdd410000000")
-            set_baudrate_rsp = bytearray.fromhex("0000ff02fed5111a00")
-            set_baudrate_cmd[7] = 5 + (230400, 460800, 921600).index(baudrate)
-            set_baudrate_cmd[8] = 256 - sum(set_baudrate_cmd[5:8])
-            transport.write(long_preamble + set_baudrate_cmd)
-            if not transport.read(timeout=100) == Chipset.ACK:
-                raise IOError(errno.ENODEV, os.strerror(errno.ENODEV))
-            if not transport.read(timeout=100) == set_baudrate_rsp:
-                raise IOError(errno.ENODEV, os.strerror(errno.ENODEV))
-
-            transport.write(Chipset.ACK)
-            transport.open(transport.port, baudrate)
-            log.debug("changed uart speed to %d baud", baudrate)
-            time.sleep(0.001)
 
         chipset = Chipset(transport, logger=log)
         return Device(chipset, logger=log)
