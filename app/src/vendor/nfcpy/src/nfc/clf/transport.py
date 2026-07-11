@@ -47,7 +47,7 @@ except ImportError:  # pragma: no cover
 import logging
 log = logging.getLogger(__name__)
 
-PATH = re.compile(r'^([a-z]+)(?::|)([a-zA-Z0-9-]+|)(?::|)([a-zA-Z0-9]+|)$')
+PATH = re.compile(r'^([a-z]+)(?::|)([^:]*)(?::|)([a-zA-Z0-9]+|)$')
 
 
 class TTY(object):
@@ -61,20 +61,32 @@ class TTY(object):
         match = PATH.match(path)
 
         if match and match.group(1) == "tty":
-            if re.match(r'^(S|ACM|AMA|USB)\d+$', match.group(2)):
-                TTYS = re.compile(r'^tty{}$'.format(match.group(2)))
+            port = match.group(2)
+            driver = match.group(3)
+
+            if re.match(r'^/dev/.+$', port):
+                try:
+                    termios.tcgetattr(open(port))
+                    return [port], driver, False
+                except termios.error:
+                    return [], driver, False
+                except IOError:
+                    raise
+
+            if re.match(r'^(S|ACM|AMA|USB)\d+$', port):
+                TTYS = re.compile(r'^tty{}$'.format(port))
                 glob = False
-            elif re.match(r'^(S|ACM|AMA|USB)$', match.group(2)):
-                TTYS = re.compile(r'^tty{}\d+$'.format(match.group(2)))
+            elif re.match(r'^(S|ACM|AMA|USB)$', port):
+                TTYS = re.compile(r'^tty{}\d+$'.format(port))
                 glob = True
-            elif re.match(r'^usbserial-\w+$', match.group(2)):
-                TTYS = re.compile(r'^cu\.{}$'.format(match.group(2)))
+            elif re.match(r'^usbserial-\w+$', port):
+                TTYS = re.compile(r'^cu\.{}$'.format(port))
                 glob = False
-            elif re.match(r'^usbserial$', match.group(2)):
+            elif re.match(r'^usbserial$', port):
                 TTYS = re.compile(r'^cu\.usbserial-.*$')
                 glob = True
-            elif re.match(r'^.+$', match.group(2)):
-                TTYS = re.compile(r'^{}$'.format(match.group(2)))
+            elif re.match(r'^.+$', port):
+                TTYS = re.compile(r'^{}$'.format(port))
                 glob = False
             else:
                 TTYS = re.compile(r'^(tty(S|ACM|AMA|USB)\d+|cu\.usbserial.*)$')
@@ -104,7 +116,7 @@ class TTY(object):
 
                 ttys = [tty for tty in ttys if tty.startswith('/dev/')]
                 log.debug('avail: %s', ' '.join([tty for tty in ttys]))
-                return ttys, match.group(3), glob
+                return ttys, driver, glob
 
         if match and match.group(1) == "com":
             if re.match(r'^COM\d+$', match.group(2)):

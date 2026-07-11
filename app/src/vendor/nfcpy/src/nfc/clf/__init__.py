@@ -111,13 +111,13 @@ class ContactlessFrontend(object):
            plugged into USB. Bus and device numbers are shown by
            ``lsusb``.
 
-        ``tty:port:driver``
+          ``tty:/dev/path:driver``
 
-           with mandatory *port* and *driver* name. This is for Posix
-           systems to open the serial port ``/dev/tty<port>`` and use
-           the driver module ``nfc/dev/<driver>.py`` for access. For
-           example, ``tty:USB0:arygon`` would open ``/dev/ttyUSB0``
-           and load the Arygon APPx/ADRx driver.
+              with mandatory full *path* and *driver* name. This is for
+              Posix systems to open the exact serial device node and use
+              the driver module ``nfc/dev/<driver>.py`` for access. For
+              example, ``tty:/dev/ttyACM0:pn532`` opens ``/dev/ttyACM0``
+              with the PN532 driver.
 
         ``com:port:driver``
 

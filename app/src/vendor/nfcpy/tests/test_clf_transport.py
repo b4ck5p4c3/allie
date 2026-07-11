@@ -23,6 +23,24 @@ def HEX(s):
 
 
 class TestTTY(object):
+    @pytest.mark.parametrize("path, found", [
+        ('tty:/dev/ttyACM0:pn532', (['/dev/ttyACM0'], 'pn532', False)),
+        ('tty:/dev/cu.usbserial-14110:pn532',
+         (['/dev/cu.usbserial-14110'], 'pn532', False)),
+    ])
+    def test_find_tty_full_device_path(self, mocker, path, found):  # noqa: F811
+        mocker.patch('nfc.clf.transport.open').return_value = True
+        mocker.patch('nfc.clf.transport.termios.tcgetattr').return_value = []
+        listdir = mocker.patch('nfc.clf.transport.os.listdir')
+        assert nfc.clf.transport.TTY.find(path) == found
+        listdir.assert_not_called()
+
+    def test_find_tty_full_device_path_err(self, mocker):  # noqa: F811
+        mocker.patch('nfc.clf.transport.open').side_effect = IOError
+        mocker.patch('nfc.clf.transport.termios.tcgetattr').return_value = []
+        with pytest.raises(IOError):
+            nfc.clf.transport.TTY.find('tty:/dev/ttyACM0:pn532')
+
     @pytest.mark.parametrize("path, avail, found", [
         ('tty', [], ([], '', True)),
         ('tty', ['cu.usbserial-1'], (['/dev/cu.usbserial-1'], '', True)),

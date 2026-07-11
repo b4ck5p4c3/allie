@@ -84,7 +84,7 @@ Each `IndicationState` drives the physical LED/buzzer animation via the PN532's 
 persistence: "./data"          # path for HAP/Homekey state files
 
 nfc:
-  path: "tty:usbserial-110:pn532"   # required — NFCpy device path
+  path: "tty:/dev/ttyACM0:pn532"    # required — NFCpy device path
   broadcast: true                    # optional — ECP broadcast for Homekey
 
 hap:
