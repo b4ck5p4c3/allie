@@ -1,0 +1,15 @@
+[Unit]
+Description=Allie NFC reader service
+After=sys-devices-platform-fe3a0000.usb-usb3-3\x2d1-3\x2d1:1.2-tty-ttyACM1.device
+Requires=sys-devices-platform-fe3a0000.usb-usb3-3\x2d1-3\x2d1:1.2-tty-ttyACM1.device
+BindsTo=sys-devices-platform-fe3a0000.usb-usb3-3\x2d1-3\x2d1:1.2-tty-ttyACM1.device
+
+[Service]
+Type=simple
+WorkingDirectory=/root/mew/apps/allie/app
+ExecStart=/usr/bin/python3 src/main.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
