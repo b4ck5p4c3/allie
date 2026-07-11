@@ -78,6 +78,8 @@ def patch_pn532_init_function():
 patch_pn532_init_function()
 
 log = logging.getLogger(__name__)
+if os.environ.get("LOG_LEVEL", "").upper() == "DEBUG":
+    log.setLevel(logging.DEBUG)
 
 # Re-declaring just for cleaner imports elsewhere
 ISODEPTag = Type4Tag
