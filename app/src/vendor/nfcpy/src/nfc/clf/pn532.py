@@ -59,6 +59,7 @@ import os
 import sys
 import time
 import errno
+from binascii import hexlify
 
 import logging
 log = logging.getLogger(__name__)
@@ -369,6 +370,30 @@ class Device(pn53x.Device):
         return self.chipset.tg_init_as_target(*args)
 
 
+def _read_or_fail(transport, timeout, expect, step):
+    # Reads one frame and compares it against *expect* (bytes it must
+    # equal, or a callable predicate). On mismatch, logs the bytes that
+    # were actually received (or the read error) before raising ENODEV,
+    # since a bare "No such device" gives no clue whether the port is
+    # wired to the wrong UART, using the wrong baud rate, or simply not
+    # a PN532 at all.
+    try:
+        frame = transport.read(timeout=timeout)
+    except IOError as error:
+        log.error("pn532 init failed at %r on %s: %s",
+                  step, transport.port, error)
+        raise IOError(errno.ENODEV, os.strerror(errno.ENODEV)) from error
+
+    ok = expect(frame) if callable(expect) else frame == expect
+    if not ok:
+        log.error("pn532 init failed at %r on %s: expected %s, got %s",
+                  step, transport.port,
+                  hexlify(expect).decode() if not callable(expect) else "?",
+                  hexlify(frame).decode() if frame else "<empty>")
+        raise IOError(errno.ENODEV, os.strerror(errno.ENODEV))
+    return frame
+
+
 def init(transport):
     if transport.TYPE == "TTY":
         baudrate = 115200
@@ -380,18 +405,16 @@ def init(transport):
         get_version_rsp = bytearray.fromhex("0000ff06fad50332")
         transport.write(long_preamble + get_version_cmd)
         log.debug("wait %d ms for data on %s", init_timeout, transport.port)
-        if not transport.read(timeout=init_timeout) == Chipset.ACK:
-            raise IOError(errno.ENODEV, os.strerror(errno.ENODEV))
-        if not transport.read(timeout=init_timeout).startswith(get_version_rsp):
-            raise IOError(errno.ENODEV, os.strerror(errno.ENODEV))
+        _read_or_fail(transport, init_timeout, Chipset.ACK, "get_version ack")
+        _read_or_fail(transport, init_timeout,
+                      lambda f: f.startswith(get_version_rsp), "get_version rsp")
 
         sam_configuration_cmd = bytearray.fromhex("0000ff05fbd4140100001700")
         sam_configuration_rsp = bytearray.fromhex("0000ff02fed5151600")
         transport.write(long_preamble + sam_configuration_cmd)
-        if not transport.read(timeout=init_timeout) == Chipset.ACK:
-            raise IOError(errno.ENODEV, os.strerror(errno.ENODEV))
-        if not transport.read(timeout=init_timeout) == sam_configuration_rsp:
-            raise IOError(errno.ENODEV, os.strerror(errno.ENODEV))
+        _read_or_fail(transport, init_timeout, Chipset.ACK, "sam_configuration ack")
+        _read_or_fail(transport, init_timeout, sam_configuration_rsp,
+                      "sam_configuration rsp")
 
         chipset = Chipset(transport, logger=log)
         return Device(chipset, logger=log)

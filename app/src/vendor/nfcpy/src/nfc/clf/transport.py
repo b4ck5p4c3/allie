@@ -120,7 +120,15 @@ class TTY(object):
         if self.tty is not None:
             self.tty.timeout = max(timeout/1E3, 0.05)
             frame = bytearray(self.tty.read(6))
-            if frame is None or len(frame) == 0:
+            if frame is None or len(frame) < 6:
+                # A real PN532/Arygon reply is never shorter than 6 bytes
+                # (either the ACK or a full frame header). A short read
+                # here means the read timed out before receiving a
+                # complete reply - report it as a timeout instead of
+                # falling through to frame[3] below, which would raise a
+                # confusing IndexError on whatever partial bytes arrived.
+                log.debug("<<< %s (incomplete, expected 6 bytes)",
+                          hexlify(frame).decode())
                 raise IOError(errno.ETIMEDOUT, os.strerror(errno.ETIMEDOUT))
             if frame.startswith(b"\x00\x00\xff\x00\xff\x00"):
                 log.log(logging.DEBUG-1, "<<< %s", hexlify(frame).decode())
