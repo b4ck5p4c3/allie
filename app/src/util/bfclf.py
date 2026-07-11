@@ -29,21 +29,31 @@ import errno
 import inspect
 import logging
 import os
+from pathlib import Path
+import sys
 import time
 
-import nfc.clf.pn53x
+
+# Force imports to resolve to vendored nfcpy first.
+_VENDORED_NFCPY_SRC = (
+    Path(__file__).resolve().parents[1] / "vendor" / "nfcpy" / "src"
+)
+if str(_VENDORED_NFCPY_SRC) not in sys.path:
+    sys.path.insert(0, str(_VENDORED_NFCPY_SRC))
+
+import nfc.clf.pn53x  # noqa: E402
 from nfc.clf import (
     CommunicationError,
     ContactlessFrontend,
     ProtocolError,
     RemoteTarget,
     UnsupportedTargetError,
-)
-from nfc.tag import activate
-from nfc.tag.tt4 import Type4Tag
+)  # noqa: E402
+from nfc.tag import activate  # noqa: E402
+from nfc.tag.tt4 import Type4Tag  # noqa: E402
 
 # Modified code BEGIN
-from util.nfc import with_crc16a
+from util.nfc import with_crc16a  # noqa: E402
 
 
 # Monkey patch pn532 init function to disable baudrate renegotiation
