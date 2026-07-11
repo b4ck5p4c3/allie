@@ -1,0 +1,77 @@
+# Path to persistence data directory
+# Optional, defaults to "./data"
+persistence: "/srv/allie/data"
+
+# Contactless Frontend NFC configuration
+nfc:
+  # NFCpy device path
+  # Required.
+  path: "tty:/dev/ttyACM0:pn532"
+
+  # Enable NFC broadcasting for HomeKey compatibility
+  # Optional, defaults to true.
+  broadcast: true
+
+# Homekit Accessory Protocol
+hap:
+  # Port to bind the HAP accessory server to.
+  # Optional, defaults to 51826.
+  bind_port: 51826
+
+  # Host to bind the HAP accessory server to.
+  # Optional.
+  # bind_host: "192.0.2.1"
+
+# MQTT configuration
+mqtt:
+  # Hostname of the MQTT broker.
+  # Required.
+  host: "localhost"
+
+  # Port of the MQTT broker.
+  # Optional, defaults to 1883.
+  port: 1883
+
+  # Username for the MQTT broker.
+  # Optional.
+  username: "admin"
+
+  # Password for the MQTT broker.
+  # Optional
+  password: "password"
+
+  # Whether to use TLS for the MQTT connection.
+  # Optional, defaults to false.
+  tls: false
+
+  # Path to the CA certificate for the MQTT broker.
+  # Optional.
+  ca_cert_path: "/path/to/ca.crt"
+
+  # Topic prefix for the MQTT messages.
+  # Optional.
+  prefix: "bus/devices/entrance-reader/"
+
+# Apple Homekey service
+homekey:
+  # Whether to use express mode
+  # Optional, defaults to true.
+  express: true
+
+  # Wallet card finish type
+  # Optional, defaults to "silver".
+  # Enum values: "tan", "gold", "silver", "black"
+  finish: "black"
+
+  # Wallet card interaction flow
+  # Optional, defaults to "fast".
+  # Enum values: "fast", "standard", "attestation"
+  flow: "fast"
+
+  # HAP Device Serial Number
+  # Optional, defaults to "BKSP.0010.03/0".
+  serial_number: "BKSP.0010.03/0"
+
+  # Pin code for pairing
+  # Optional, defaults to "031-45-154".
+  pin_code: "031-45-154"
