@@ -119,8 +119,28 @@ class TTY(object):
     def read(self, timeout):
         if self.tty is not None:
             self.tty.timeout = max(timeout/1E3, 0.05)
-            frame = bytearray(self.tty.read(6))
-            if frame is None or len(frame) < 6:
+            # Per the PN532 UART frame format (NXP UM0701-02 section
+            # 6.2.1), any number of extra 0x00 preamble bytes may precede
+            # the "00 00 FF" start code of a frame - some modules/adapters
+            # do emit such extra padding. Sync to the start code first
+            # instead of assuming it begins at byte 0, otherwise a single
+            # stray leading 0x00 shifts every subsequent byte and this
+            # code misreads a data byte as the frame LEN, corrupting the
+            # rest of the read.
+            frame = bytearray()
+            while frame[-3:] != b"\x00\x00\xff":
+                byte = self.tty.read(1)
+                if len(byte) == 0:
+                    log.debug("<<< %s (no start code, timed out)",
+                              hexlify(frame).decode())
+                    raise IOError(errno.ETIMEDOUT, os.strerror(errno.ETIMEDOUT))
+                frame += byte
+                if len(frame) > 64:
+                    log.debug("<<< %s (no start code found)",
+                              hexlify(frame).decode())
+                    raise IOError(errno.ETIMEDOUT, os.strerror(errno.ETIMEDOUT))
+            frame = frame[-3:] + self.tty.read(3)
+            if len(frame) < 6:
                 # A real PN532/Arygon reply is never shorter than 6 bytes
                 # (either the ACK or a full frame header). A short read
                 # here means the read timed out before receiving a
@@ -130,7 +150,7 @@ class TTY(object):
                 log.debug("<<< %s (incomplete, expected 6 bytes)",
                           hexlify(frame).decode())
                 raise IOError(errno.ETIMEDOUT, os.strerror(errno.ETIMEDOUT))
-            if frame.startswith(b"\x00\x00\xff\x00\xff\x00"):
+            if frame == b"\x00\x00\xff\x00\xff\x00":
                 log.log(logging.DEBUG-1, "<<< %s", hexlify(frame).decode())
                 return frame
             LEN = frame[3]
